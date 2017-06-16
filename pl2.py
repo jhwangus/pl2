@@ -1,11 +1,12 @@
 #! /usr/bin/python
 # Filename: pl2.py
 
-# TODO: Fix the order dependency of track/annotation.   The final process should be at the end of track, not annotation.
-# TODO: Clean the whitespaces before and after in location and string, as well as tab and newline/crlf
+# Done: Fix the order dependency of track/annotation.   The final process should be at the end of track, not annotation.
+# Done: Clean the whitespaces before and after in location and string, as well as tab and newline/crlf
+# TODO: Port it to Python 3.4
 # TODO: Provide a mapping list for track/location/annotation (e.g., node/audioURL/title) to adopt to different xml style
 
-import xml.sax, sys, getopt, os.path, urllib2, re
+import xml.sax, sys, getopt, os.path, urllib.request, re
 from random import choice
 
 browser_agents = [('User-agent', 'Mozilla/4.0 (compatible; MSIE 5.00; Windows 98)')]
@@ -39,9 +40,11 @@ class PlayListHandler(xml.sax.ContentHandler):
                 # print self.Location
             elif name == "annotation":
                 self.isAnnotation = 0
-                ext = os.path.splitext(self.Location)[1]
-                self.cmdlist.append([self.Location, prefix + self.Annotation.strip() + ext])
         if name == "track":
+            self.Location = self.Location.strip()
+            self.Annotation = self.Annotation.strip()
+            ext = os.path.splitext(self.Location)[1]
+            self.cmdlist.append([self.Location, prefix + self.Annotation.strip() + ext])
             self.TrackOn = False
         return
 
@@ -126,8 +129,8 @@ def isHTML(fname):
 def file2str(fname, exit = True):
     try:
         fl = open(fname, "r")
-    except Exception, e:
-        print "Error opening %s: %s" % (fname, e)
+    except Exception as e:
+        print ("Error opening %s: %s" % (fname, e))
         if exit:
             sys.exit(3)
         else:
@@ -139,8 +142,8 @@ def file2str(fname, exit = True):
 def file2list(fname, exit = True):
     try:
         fl = open(fname, "r")
-    except Exception, e:
-        print "Error opening %s: %s" % (fname, e)
+    except Exception as e:
+        print ("Error opening %s: %s" % (fname, e))
         if exit:
             sys.exit(3)
         else:
@@ -159,7 +162,7 @@ def get_playlist(fname):
     xli = []
     for line in p.findall(content):
         url = line[line.find('=')+1:]
-        print "Retrieve playlist ..."
+        print ("Retrieve playlist ...")
         fn = download_url(url)
         xli.append(fn)
     return list(set(xli))
@@ -171,42 +174,48 @@ def download_url(url, role='b'):
     try:
         filename = url.split("/")[-1]
         outfile = open(filename, "wb")
-        opener = urllib2.build_opener()
-        if role == 'p':
-            opener.addheaders = player_agents
-        else:
-            opener.addheaders = browser_agents
-        instream = opener.open(url)
-        length = instream.info().getheader("Content-Length")
+        # opener = urllib2.build_opener()
+        request = urllib.request.Request(url)
+        response = urllib.request.urlopen(request)
+        # if role == 'p':
+        #    opener.addheaders = player_agents
+        # else:
+        #    opener.addheaders = browser_agents
+        # instream = opener.open(url)
+        # length = instream.info().getheader("Content-Length")
+        length = response.getheader("Content-Length")
         if not length or length == 0 or length == '0':
             length = "?"
-        print "Downloading %s (%s bytes) ..." % (filename, length)
+        print ("Downloading %s (%s bytes) ..." % (filename, length))
         if length != "?":
             length = float(length)
-        bytesRead = 0.0
-        count = 0
-        for line in instream:
-            bytesRead += len(line)
-            count += 1
-            if length != "?" and count % 10 == 0:
-                print "%s: %.02f/%.02f kb (%d%%)" % (filename, bytesRead / 1024.0, length / 1024.0,
-                    100*bytesRead / length), "\r",
-            outfile.write(line)
-        instream.close()
+        # bytesRead = 0.0
+        # count = 0
+        # for line in instream:
+        #    bytesRead += len(line)
+        #    count += 1
+        #    if length != "?" and count % 10 == 0:
+        #        print ("%s: %.02f/%.02f kb (%d%%)" % (filename, bytesRead / 1024.0, length / 1024.0,
+        #            100*bytesRead / length), "\r",)
+        #    outfile.write(line)
+        # instream.close()
+        body = response.read()
+        outfile.write(response)
         outfile.close()
+        bytesRead = body.len()
         if length != "?":
-            print "%s: %.02f/%.02f kb (%d%%)" % (filename, bytesRead / 1024.0, length / 1024.0,
-                100*bytesRead / length)
+            print ("%s: %.02f/%.02f kb (%d%%)" % (filename, bytesRead / 1024.0, length / 1024.0,
+                100*bytesRead / length))
         return filename
-    except Exception, e:
-        print "\nError downloading %s: %s" % (url, e)
+    except Exception as e:
+        print ("\nError downloading %s: %s" % (url, e))
         return ""
 
 def download_all(flist):
     for url, final_name in flist:
         name = download_url(url, 'p')
         if final_name != "":
-            print name, '->', final_name.encode("utf-8")
+            print (name, '->', final_name.encode("utf-8"))
             if os.path.exists(final_name):
                 os.remove(final_name)
             os.rename(name, final_name)
@@ -215,16 +224,16 @@ def handle_xml(fname):
     # For xml and xspf
     try:
         fl = open(fname, "r")
-    except Exception, e:
-        print "Error opening %s: %s" % (fname, e)
+    except Exception as e:
+        print ("Error opening %s: %s" % (fname, e))
         sys.exit(3)
     MyHandler = PlayListHandler()
     parser = xml.sax.make_parser()
     parser.setContentHandler(MyHandler)
     try:
         parser.parse(fl)
-    except Exception, e:
-        print "Error opening %s: %s" % (fname, e)
+    except Exception as e:
+        print ("Error opening %s: %s" % (fname, e))
         fl.close()
         sys.exit(3)
     fl.close()
@@ -261,7 +270,7 @@ def get_name_list(fname):
             nf = next(n, "")
             if nf != "":
                 nf += os.path.splitext(f)[1]
-            print f, '->', nf.encode("utf-8")
+            print (f, '->', nf.encode("utf-8"))
             namelist.append(nf)
         answer = raw_input("Is this name list good to use? (Y/N) ")
         if answer[0].upper() == "Y":
@@ -278,7 +287,7 @@ def confirm_name_list(fname, names):
             nf = next(n, "")
             if nf != "":
                 nf += os.path.splitext(f)[1]
-            print f, '->', nf.encode("UTF-16")
+            print (f, '->', nf.encode("UTF-16"))
             namelist.append(nf)
         answer = raw_input("Is this name list good to use? (Y/N) ")
         if answer[0].upper() == "Y":
@@ -318,7 +327,7 @@ def main(argv):
         sys.exit()
     # Check if fname is an url. If so, download it.
     if isURL(url):
-        print "Retrieve URL ..."
+        print ("Retrieve URL ...")
         fname = download_url(url)
     else:
         fname = url
@@ -332,17 +341,17 @@ def main(argv):
     for fname in playlist:
         ext = os.path.splitext(fname)[1].upper()
         if ext == ".XML" or ext == ".XSPF":
-            print "Found XML playlist ..."
+            print ("Found XML playlist ...")
             handle_xml(fname)
-            print "Enjoy the music!"
+            print ("Enjoy the music!")
         elif ext == ".M3U" or ext == ".ASX":
             if ext == ".M3U":
-                print "Found M3U playlist ..."
+                print ("Found M3U playlist ...")
             else:
-                print "Found ASX playlist ..."
+                print ("Found ASX playlist ...")
             if names == "":
-                print "The player list " + fname + " is a m3u/asx file."
-                print "You did not provide a name list to rename songs."
+                print ("The player list " + fname + " is a m3u/asx file.")
+                print ("You did not provide a name list to rename songs.")
                 answer = raw_input("Do you want to add a name list?  (Y/N) ")
                 new_names = []
                 if answer[0].upper() == "Y":
@@ -354,7 +363,7 @@ def main(argv):
                     if answer[0].upper() != "Y":
                         continue
                 handle_m3u_asx(fname, new_names) 
-                print "Enjoy the music!"
+                print ("Enjoy the music!")
             else:
                 new_names = confirm_name_list(fname, names)
                 # print new_names
@@ -363,9 +372,9 @@ def main(argv):
                     if answer[0].upper() != "Y":
                         continue
                 handle_m3u_asx(fname, new_names)
-                print "Enjoy the music!"
+                print ("Enjoy the music!")
         else:
-            print "Error: " + fname + " has an unknown file extension."
+            print ("Error: " + fname + " has an unknown file extension.")
 
 if __name__ == "__main__":
     main(sys.argv[1:])
